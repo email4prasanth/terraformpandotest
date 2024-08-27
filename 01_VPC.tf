@@ -13,7 +13,7 @@ provider "aws" {
 }
 
 # Create a VPC
-resource "aws_vpc" "default" {
+resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true #To display IPv4 DNS
   tags = {
@@ -25,7 +25,7 @@ resource "aws_vpc" "default" {
 ############# Public Subnet, IGW, RT, RTAssociation ##################
 resource "aws_subnet" "public_subnet" {
   count             = length(var.public_subnet_cidr)
-  vpc_id            = aws_vpc.default.id
+  vpc_id            = aws_vpc.main.id
   cidr_block        = element(var.public_subnet_cidr, count.index)
   availability_zone = element(var.azs, count.index)
 
@@ -35,7 +35,7 @@ resource "aws_subnet" "public_subnet" {
 }
 ########### internet_gateway ########### 
 resource "aws_internet_gateway" "gw" {
-  vpc_id = aws_vpc.default.id
+  vpc_id = aws_vpc.main.id
 
   tags = {
     Name = "${var.IGW_name}"
@@ -43,7 +43,7 @@ resource "aws_internet_gateway" "gw" {
 }
 ########### route_table ########### 
 resource "aws_route_table" "pub-rt" {
-  vpc_id = aws_vpc.default.id
+  vpc_id = aws_vpc.main.id
 
   route {
     cidr_block = "0.0.0.0/0"
@@ -59,47 +59,42 @@ resource "aws_route_table_association" "RTA-pub" {
   subnet_id      = element(aws_subnet.public_subnet.*.id, count.index)
   route_table_id = aws_route_table.pub-rt.id
 }
-########## Private Subnet,Private EIP, NATGW, RT, RTAssociation ############
-resource "aws_subnet" "private_subnet" {
-  count             = length(var.private_subnet_cidr)
-  vpc_id            = aws_vpc.default.id
-  cidr_block        = element(var.private_subnet_cidr, count.index)
-  availability_zone = element(var.azs, count.index)
+############## Security group for Instance
+resource "aws_security_group" "allow_all" {
+  name        = "allow_all_traffic"
+  description = "Allow all traffic"
+  vpc_id      = aws_vpc.main.id
+  # Allow SSH (port 22) using putty to login
+  ingress {
+    description = "Allow all_traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = -1
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-  tags = {
-    Name = "${var.vpc_cidr_name}-private-subnet-${count.index + 1}"
-  }
-}
-########## Elastiv IP ########## 
-resource "aws_eip" "nat-eip" {
-  tags = {
-    Name = "natgw-eip"
-  }
-}
-########## NAT Gateway ########## 
-resource "aws_nat_gateway" "natgw" {
-  allocation_id = aws_eip.nat-eip.id
-  subnet_id     = aws_subnet.private_subnet.0.id #Connected to first private gw
-  tags = {
-    Name = "NATgw"
-  }
-  depends_on = [aws_internet_gateway.gw]
-}
-##########  Private Routing Table ########## 
-resource "aws_route_table" "pvt-rt" {
-  vpc_id = aws_vpc.default.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_nat_gateway.natgw.id
+  egress {
+    description = "From Server VPC to internet"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
   tags = {
-    Name = "PvtRT_name"
+    Name = "allow_all"
   }
 }
-##########  RT Association ########## 
-resource "aws_route_table_association" "RTA-pvt" {
-  count          = length(var.private_subnet_cidr)
-  subnet_id      = element(aws_subnet.private_subnet.*.id, count.index)
-  route_table_id = aws_route_table.pvt-rt.id
+############## Instance ##########
+resource "aws_instance" "public-web-server" {
+  # count             = length(var.public_subnet_cidr)
+  availability_zone           = "ap-south-1a"
+  ami                         = "ami-0522ab6e1ddcc7055"
+  instance_type               = "t2.micro"
+  key_name                    = "DevOpsKey"
+  subnet_id                   = aws_subnet.public_subnet[0].id
+  vpc_security_group_ids      = ["${aws_security_group.allow_all.id}"]
+  associate_public_ip_address = true
+  tags = {
+    Name = "${var.vpc_cidr_name}-Public-Server-1"
+  }
 }
