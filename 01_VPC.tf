@@ -59,38 +59,40 @@ resource "aws_route_table_association" "RTA-pub" {
   subnet_id      = element(aws_subnet.public_subnet.*.id, count.index)
   route_table_id = aws_route_table.pub-rt.id
 }
-# Create a security group for the EC2 instance
-resource "aws_security_group" "ec2_sg" {
-  name_prefix = "ec2_sg"
+############## Security group for Instance
+resource "aws_security_group" "allow_all" {
+  name        = "allow_all_traffic"
+  description = "Allow all traffic"
+  vpc_id      = aws_vpc.main.id
+  # Allow SSH (port 22) using putty to login
   ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  egress {
+    description = "Allow all_traffic"
     from_port   = 0
     to_port     = 0
     protocol    = -1
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  egress {
+    description = "From Server VPC to internet"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = {
+    Name = "allow_all"
+  }
 }
 ############## Instance ##########
 resource "aws_instance" "public-web-server" {
   # count             = length(var.public_subnet_cidr)
-  availability_zone = "ap-south-1a"
-  ami               = "ami-0522ab6e1ddcc7055"
-  instance_type     = "t2.micro"
-  key_name          = "DevOpsKey"
-  subnet_id         = aws_subnet.public_subnet[0].id
-  security_groups = [aws_security_group.ec2_sg.name]
-  # vpc_security_group_ids      = ["${aws_security_group.ec2_sg.id}"]
+  availability_zone           = "ap-south-1a"
+  ami                         = "ami-0522ab6e1ddcc7055"
+  instance_type               = "t2.micro"
+  key_name                    = "DevOpsKey"
+  subnet_id                   = aws_subnet.public_subnet[0].id
+  vpc_security_group_ids      = ["${aws_security_group.allow_all.id}"]
   associate_public_ip_address = true
   tags = {
     Name = "${var.vpc_cidr_name}-Public-Server-1"
