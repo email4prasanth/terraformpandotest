@@ -1,6 +1,6 @@
 aws_region  = "ap-south-1"
 Key_name    = "DevOpsKey"
-environment = "dev"
+environment = "production"
 
 vpc_cidr            = "10.1.0.0/16"                  # pow(2,(32-16))= 65536 subnets
 public_subnet_cidr  = ["10.1.1.0/24", "10.1.2.0/24"] # pow(2,(32-24))= 256 subnets

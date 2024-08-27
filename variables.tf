@@ -11,8 +11,4 @@ variable "IGW_name" {}
 variable "MainRT_name" {}
 variable "azs" {}
 
-variable "db_password" {
-  description = "RDS root user password"
-  type        = string
-  sensitive   = true
-}
+
